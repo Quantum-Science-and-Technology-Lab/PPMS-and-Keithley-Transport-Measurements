@@ -7,6 +7,7 @@ import MultiPyVu as mpv
 import time
 from enum import Enum, auto
 
+
 class MVUInstrumentList(Enum):
     DYNACOOL = auto()
     PPMS = auto()
@@ -16,7 +17,9 @@ class MVUInstrumentList(Enum):
     OPTICOOL = auto()
     na = auto()
 
+
 mpv.instrument.InstrumentList = MVUInstrumentList
+
 
 with mpv.Client() as client:
     client.open()
