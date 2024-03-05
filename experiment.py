@@ -36,8 +36,8 @@ def save_temp_field_chamber():
 def Scan_Field(stop):
     CurrentField, sF = client.get_field()
     set_point = stop
-    rate = 20
-    points = 2501
+    rate = 2
+    points = 50000/2 + 1
     wait = abs(CurrentField - set_point) / points / rate
     message = f'Set the field to {set_point} Oe and then collect data '
     message += 'while ramping'
@@ -59,7 +59,7 @@ def Scan_Field(stop):
         keithley.compliance_current = 0.1
         keithley.enable_source()
 
-        for t in range(2501):
+        for t in range(int(points/6)):
 
             start_time = time.time()
 
@@ -67,7 +67,7 @@ def Scan_Field(stop):
             v_list = np.linspace(0, -16, 17)  # same range as Sammak et. al.
 
             for v in v_list:
-                keithley.ramp_to_voltage(v, steps=10, pause=0.001)  # ramp Keithley very quickly
+                keithley.ramp_to_voltage(v, steps=10, pause=0.0001)  # ramp Keithley very quickly
                 print(f'Vg: {keithley.voltage} ', end="")
 
                 # chamber conditions
@@ -81,16 +81,20 @@ def Scan_Field(stop):
                 data.set_value('Gate Voltage', keithley.voltage)
                 data.write_data()
 
+            print("done inner loop")
+
             end_time = time.time()
             time_diff = end_time - start_time
-
-            if time_diff > wait:
+            
+            
+            if time_diff > 6:
                 raise Exception('The inner sweep takes too long!')
 
             # poll data at roughly equal intervals based on points/ramp
-            time.sleep(wait - time_diff)
+            time.sleep(6 - time_diff)
 
 
+        print("Done outer loop")
         keithley.shutdown()
 
     except Exception as e:
@@ -117,9 +121,6 @@ with mpv.Client() as client:
         client.field.driven_mode.driven
     )
     
-    # Wait for dewar pressure
-    time.sleep(60 * 5)
-    
     # Wait for 60 seconds after temperature and field are stable
     print('Waiting...')
     client.wait_for(
@@ -127,6 +128,14 @@ with mpv.Client() as client:
         timeout_sec=0,
         bitmask=client.temperature.waitfor | client.field.waitfor
     )
+
+    # time.sleep(100 * 60)  alternative to the wait_for above... should ideally be identical
+
+    print(f"Field at {client.get_field()}")
+    print(f"Temp at {client.get_temperature()}")
+
+    # Wait for dewar pressure
+    time.sleep(60 * 60)
     
     # Configure resistivity measurement
     client.resistivity.bridge_setup(
@@ -150,19 +159,19 @@ with mpv.Client() as client:
     # during a field ramp from -50,000 to 0.0 Oe at 20 Oe/sec
     Scan_Field(0)  
     
-    time.sleep(60 * 5)  # wait for dewar pressure to stabilize
+    time.sleep(60 * 60)  # wait for dewar pressure to stabilize
     
     # Polling temperature/field and performing resistivity measurement 
     # During a field ramp from 0 to 50,000 Oe at 20 Oe/sec
     Scan_Field(50000)
     
-    time.sleep(60 * 5)  # wait for dewar pressure to stabilize
+    time.sleep(60 * 60)  # wait for dewar pressure to stabilize
     
     # Polling temperature/field and performing resistivity measurement 
     # During a field ramp from 50,000 to 0 Oe at 20 Oe/sec
     Scan_Field(0)
     
-    time.sleep(60 * 5)  # wait for dewar pressure to stabilize
+    time.sleep(60 * 60)  # wait for dewar pressure to stabilize
     
     # Polling temperature/field and performing resistivity measurement 
     # During a field ramp from 0 to -50,000 Oe at 20 Oe/sec
@@ -178,6 +187,16 @@ with mpv.Client() as client:
     )
     client.set_temperature(
         300,
-        2,
+        3,
         client.temperature.approach_mode.fast_settle
     )
+
+    # Wait for 60 seconds after temperature and field are stable
+    print('Waiting...')
+    client.wait_for(
+        60,
+        timeout_sec=0,
+        bitmask=client.temperature.waitfor | client.field.waitfor
+    )
+
+    #time.sleep(100 * 60)  alternative to the wait_for above... should ideally be identical
