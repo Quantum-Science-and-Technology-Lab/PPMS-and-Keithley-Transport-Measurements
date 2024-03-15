@@ -142,7 +142,8 @@ with mpv.Client() as client:
     # Polling temperature/field and performing resistivity measurement 
     # During a field ramp from 0 to -50,000 Oe at 20 Oe/sec
     Scan_Field(-50000)
-    
+    #waiting 60 mins for dewar pressure
+    time.sleep(60*60)
     # Set 300 K and 0 Oe
     print('Setting 300 K and 0 Oe')
     client.set_field(
@@ -155,4 +156,10 @@ with mpv.Client() as client:
         300,
         2,
         client.temperature.approach_mode.fast_settle
+    )
+    print('Waiting...')
+    client.wait_for(
+        60,
+        timeout_sec=0,
+        bitmask=client.temperature.waitfor | client.field.waitfor
     )
