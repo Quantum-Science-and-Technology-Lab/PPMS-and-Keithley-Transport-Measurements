@@ -79,7 +79,7 @@ with mpv.Client() as client:
     print('Setting 5 K and -50,000 Oe')
     client.set_temperature(
         5,
-        3000, #set back to 3
+        3,
         client.temperature.approach_mode.fast_settle
     )
     client.set_field(
