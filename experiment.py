@@ -8,99 +8,10 @@ import MultiPyVu as mpv
 import time
 import numpy as np
 from enum import Enum, auto
+import utilities
 from pymeasure.instruments.keithley import Keithley2400
 
-
-class MVUInstrumentList(Enum):
-    DYNACOOL = auto()
-    PPMS = auto()
-    PPMSMVU = auto()
-    VERSALAB = auto()
-    MPMS3 = auto()
-    OPTICOOL = auto()
-    na = auto()
-
-
-mpv.instrument.InstrumentList = MVUInstrumentList
-
-
-def save_temp_field_chamber():
-    T, sT = client.get_temperature()
-    F, sF = client.get_field()
-    C = client.get_chamber()
-    res = client.resistivity.get_resistance(bridge_number=1)
-    print(f'{T:{7}.{3}f} {sT:{10}} {F:{7}} {sF:{20}} {C:{15}} {res}')
-    return T, F, C, res
-
-
-def Scan_Field(stop):
-    CurrentField, sF = client.get_field()
-    set_point = stop
-    rate = 2
-    points = 50000/2 + 1
-    wait = abs(CurrentField - set_point) / points / rate
-    message = f'Set the field to {set_point} Oe and then collect data '
-    message += 'while ramping'
-    print('')
-    print(message)
-    print('')
-    client.set_field(
-        set_point,
-        rate,
-        client.field.approach_mode.linear,
-        client.field.driven_mode.driven
-    )
-
-    try:
-        # setup Keithley
-        keithley = Keithley2400("GPIB0::5")
-
-        keithley.apply_voltage()
-        keithley.compliance_current = 0.1
-        keithley.enable_source()
-
-        for t in range(int(points/6)):
-
-            start_time = time.time()
-
-            # Keithley sweep
-            v_list = np.linspace(0, -16, 17)  # same range as Sammak et. al.
-
-            for v in v_list:
-                keithley.ramp_to_voltage(v, steps=10, pause=0.0001)  # ramp Keithley very quickly
-                print(f'Vg: {keithley.voltage} ', end="")
-
-                # chamber conditions
-                T, F, C, res = save_temp_field_chamber()
-
-                data.set_value('Time', t)
-                data.set_value('Temperature', T)
-                data.set_value('Field', F)
-                data.set_value('Chamber Status', C)
-                data.set_value('Resistance', res)
-                data.set_value('Gate Voltage', keithley.voltage)
-                data.write_data()
-
-            print("done inner loop")
-
-            end_time = time.time()
-            time_diff = end_time - start_time
-            
-            
-            if time_diff > 6:
-                raise Exception('The inner sweep takes too long!')
-
-            # poll data at roughly equal intervals based on points/ramp
-            time.sleep(6 - time_diff)
-
-
-        print("Done outer loop")
-        keithley.shutdown()
-
-    except Exception as e:
-        # graceful shutdown of Keithley
-        print(f'Encountered exception: {str(e)}')
-        keithley.shutdown()
+utilities.instrument_ppmsmvu_setup()
 
 with mpv.Client() as client:
     client.open()
@@ -157,32 +68,33 @@ with mpv.Client() as client:
     
     # Polling temperature/field and performing resistivity measurement 
     # during a field ramp from -50,000 to 0.0 Oe at 20 Oe/sec
-    Scan_Field(0)  
+    # points = field changed / field rate, 1 point per second
+    utilities.scan_field_with_keithley(field_stop=0, field_rate=20, points=2501, voltage_points=17, client=client, data=data)
     
     time.sleep(60 * 60)  # wait for dewar pressure to stabilize
     
     # Polling temperature/field and performing resistivity measurement 
     # During a field ramp from 0 to 50,000 Oe at 20 Oe/sec
-    Scan_Field(50000)
+    utilities.scan_field_with_keithley(field_stop=50000, field_rate=20, points=2501, voltage_points=17, client=client, data=data)
     
     time.sleep(60 * 60)  # wait for dewar pressure to stabilize
     
     # Polling temperature/field and performing resistivity measurement 
     # During a field ramp from 50,000 to 0 Oe at 20 Oe/sec
-    Scan_Field(0)
+    utilities.scan_field_with_keithley(field_rate=20, field_stop=0, points=2501, voltage_points=17, client=client, data=data)
     
     time.sleep(60 * 60)  # wait for dewar pressure to stabilize
     
     # Polling temperature/field and performing resistivity measurement 
     # During a field ramp from 0 to -50,000 Oe at 20 Oe/sec
-    Scan_Field(-50000)
+    utilities.scan_field_with_keithley(field_rate=20, field_stop=-50000, points=2501, voltage_points=17, client=client, data=data)
     
     # Set 300 K and 0 Oe
     print('Setting 300 K and 0 Oe')
     client.set_field(
         0.0,
         20,
-        client.field.approach_mode.linear,
+        client.field.approach_mode.oscillate,
         client.field.driven_mode.driven
     )
     client.set_temperature(

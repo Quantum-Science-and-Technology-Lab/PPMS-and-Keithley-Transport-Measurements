@@ -1,4 +1,9 @@
-def scan_field_no_keithley(stop, rate, points):
+import time
+import numpy as np
+from save_data_functions import save_temp_field_chamber_res_data
+from pymeasure.instruments.keithley import Keithley2400
+
+def scan_field_no_keithley(stop, rate, points, client, data):
     CurrentField, sF = client.get_field()
     set_point = stop
     wait = abs(CurrentField - set_point) / points / rate
@@ -18,7 +23,7 @@ def scan_field_no_keithley(stop, rate, points):
     for t in range(points):
         # chamber conditions
         start_time = time.time()
-        T, F, C, res = save_temp_field_chamber()
+        T, F, C, res = save_temp_field_chamber_res_data()
         
         data.set_value('Time', t)
         
@@ -42,14 +47,18 @@ def scan_field_no_keithley(stop, rate, points):
 
 
 def scan_field_with_keithley(
-        field_stop, field_rate, points, 
-        GPIB_address_str = "GPIB0::5", compliance_current = 0.1, 
-        voltage_start = 0, voltage_stop = 16, voltage_points = 17
+        field_stop, 
+        field_rate, 
+        points, 
+        voltage_points,
+        client,
+        data,
+        voltage_start = 0, 
+        voltage_stop = 0.5, 
+        GPIB_address_str = "GPIB0::5", 
+        compliance_current = 0.1, 
         ):
-    
-    CurrentField, sF = client.get_field()
     set_point = field_stop
-    wait = abs(CurrentField - set_point) / points / field_rate
     message = f'Set the field to {set_point} Oe and then collect data '
     message += 'while ramping'
     print('')
@@ -82,7 +91,7 @@ def scan_field_with_keithley(
                 print(f'Vg: {keithley.voltage} ', end="")
 
                 # chamber conditions
-                T, F, C, res = save_temp_field_chamber()
+                T, F, C, res = save_temp_field_chamber_res_data()
 
                 data.set_value('Time', t)
                 data.set_value('Temperature', T)
@@ -110,3 +119,56 @@ def scan_field_with_keithley(
         # graceful shutdown of Keithley
         print(f'Encountered exception: {str(e)}')
         keithley.shutdown()
+
+
+def _keithley_sweep(data):
+    # setup Keithley
+    keithley = Keithley2400("GPIB0::5")
+
+    try:
+        keithley.apply_voltage()
+        keithley.compliance_current = 0.1
+        keithley.enable_source()
+
+        # Keithley sweep
+        v_list = np.linspace(0, -2, 5)  # same range as Sammak et. al.
+
+        for v in v_list:
+            keithley.ramp_to_voltage(v, steps=10, pause=0.001)  # ramp Keithley very quickly
+            print(f'Vg: {keithley.voltage} ', end="")
+
+            # chamber conditions
+            T, F, C, res = save_temp_field_chamber_res_data()
+
+            data.set_value('Time', t)
+            data.set_value('Temperature', T)
+            data.set_value('Field', F)
+            data.set_value('Chamber Status', C)
+            data.set_value('Resistance', res)
+            data.set_value('Gate Voltage', keithley.voltage)
+            data.write_data()
+
+        keithley.shutdown()
+
+    except Exception as e:
+        # graceful shutdown of Keithley
+        print(f'Encountered exception: {str(e)}')
+        keithley.shutdown()
+
+
+def step_field_with_keithley(start, target, steps, client, data):
+    points = np.linspace(start, target, steps)
+
+    for point in points:
+        client.set_field(
+            point,
+            20,
+            client.field.approach_mode.linear,
+            client.field.driven_mode.driven
+        )
+        client.wait_for(
+            60,
+            timeout_sec=0,
+            bitmask=client.temperature.waitfor | client.field.waitfor
+        )
+        _keithley_sweep(data)
