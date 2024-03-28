@@ -1,12 +1,13 @@
 import time
 import numpy as np
-from save_data_functions import save_temp_field_chamber_res_data
+from .save_data_functions import save_temp_field_chamber_res_data
 from pymeasure.instruments.keithley import Keithley2400
+import math
 
 def scan_field_no_keithley(stop, rate, points, client, data):
     CurrentField, sF = client.get_field()
     set_point = stop
-    wait = abs(CurrentField - set_point) / points / rate
+    wait = abs(CurrentField - set_point) / (points-1) / rate
     message = f'Set the field to {set_point} Oe and then collect data '
     message += 'while ramping'
     print('')
@@ -23,7 +24,7 @@ def scan_field_no_keithley(stop, rate, points, client, data):
     for t in range(points):
         # chamber conditions
         start_time = time.time()
-        T, F, C, res = save_temp_field_chamber_res_data()
+        T, F, C, res = save_temp_field_chamber_res_data(client)
         
         data.set_value('Time', t)
         
@@ -79,19 +80,19 @@ def scan_field_with_keithley(
         keithley.compliance_current = compliance_current
         keithley.enable_source()
 
-        for t in range(int(points/6)):
+        for t in range(math.ceil(points/6)):
 
             start_time = time.time()
 
             # Keithley sweep
-            v_list = np.linspace(voltage_start, voltage_stop, voltage_points)  # same range as Sammak et. al.
+            v_list = np.linspace(voltage_start, voltage_stop, voltage_points)
 
             for v in v_list:
                 keithley.ramp_to_voltage(v, steps=10, pause=0.0001)  # ramp Keithley very quickly
                 print(f'Vg: {keithley.voltage} ', end="")
 
                 # chamber conditions
-                T, F, C, res = save_temp_field_chamber_res_data()
+                T, F, C, res = save_temp_field_chamber_res_data(client)
 
                 data.set_value('Time', t)
                 data.set_value('Temperature', T)
@@ -138,7 +139,7 @@ def _keithley_sweep(data):
             print(f'Vg: {keithley.voltage} ', end="")
 
             # chamber conditions
-            T, F, C, res = save_temp_field_chamber_res_data()
+            T, F, C, res = save_temp_field_chamber_res_data(client)
 
             data.set_value('Time', t)
             data.set_value('Temperature', T)

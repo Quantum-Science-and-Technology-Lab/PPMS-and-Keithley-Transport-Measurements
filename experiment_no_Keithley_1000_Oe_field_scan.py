@@ -26,7 +26,7 @@ with mpv.Client() as client:
     )
     client.set_field(
         -1000.0,
-        20,
+        20, 
         client.field.approach_mode.linear,
         client.field.driven_mode.driven
     )
@@ -40,7 +40,7 @@ with mpv.Client() as client:
     )
 
         # Wait for dewar pressure
-    time.sleep(60 * 60)
+    time.sleep(60 * 60) 
     
     # Configure resistivity measurement
     client.resistivity.bridge_setup(
