@@ -1,7 +1,7 @@
 """
 Created on Wed Feb 28 14:53:09 2024
 
-@author: Marcus Edwards, Biswas
+@author: Debo Biswas
 """
 import MultiPyVu as mpv
 import time
@@ -17,7 +17,7 @@ with mpv.Client() as client:
 
     print('client accepted')
     
-    # Set 4 K and 0 Oe
+    # Set 4 K and -5000 Oe
     print('Setting 5 K and -50,000 Oe')
     client.set_temperature(
         4,
@@ -60,28 +60,28 @@ with mpv.Client() as client:
     
     # configure the MultiVu columns
     data_b1 = mpv.DataFile()
-    data_b1.add_multiple_columns(['Time_b1', 'Temperature_b1', 'Field_b1', 'Chamber Status_b1', 'Resistance_b1'])
+    data_b1.add_multiple_columns(['Time_b1', 'Temperature_b1', 'Field_b1', 'Chamber Status_b1', 'Resistance_b1', 'Current_b1'])
     data_b1.create_file_and_write_header('Resistance_b1.dat', 'Van der pauw bridge 1 data')
     
-    # during a field ramp from -50,000 to 0.0 Oe at 20 Oe/sec
+    # during a field ramp from -5,000 to 0.0 Oe at 20 Oe/sec
     utilities.scan_field_no_keithley(0, 20, 2051, client, data_b1, bridge=1)
     
     print("waiting for dewar pressure (60 mins)")
     time.sleep(60 * 60)  # wait for dewar pressure to stabilize
     
-    # During a field ramp from 0 to 50,000 Oe at 20 Oe/sec
+    # During a field ramp from 0 to 5,000 Oe at 20 Oe/sec
     utilities.scan_field_no_keithley(5000, 20, 2051, client, data_b1, bridge=1)
     
     print("waiting for dewar pressure (60 mins)")
     time.sleep(60 * 60)  # wait for dewar pressure to stabilize
     
-    # During a field ramp from 50,000 to 0 Oe at 20 Oe/sec
+    # During a field ramp from 5,000 to 0 Oe at 20 Oe/sec
     utilities.scan_field_no_keithley(0, 20, 2051, client, data_b1, bridge=1)
     
     print("waiting for dewar pressure (60 mins)")
     time.sleep(60 * 60)  # wait for dewar pressure to stabilize
     
-    # During a field ramp from 0 to -50,000 Oe at 20 Oe/sec
+    # During a field ramp from 0 to -5,000 Oe at 20 Oe/sec
     utilities.scan_field_no_keithley(-5000, 20, 2051, client, data_b1, bridge=1)
 
 ## SCAN FOR BRIDGE 2
@@ -89,28 +89,32 @@ with mpv.Client() as client:
         bridge_number=2,
         channel_on=True,
         current_limit_uA=20,
-        power_limit_uW=10,
+        power_limit_uW=2,
         voltage_limit_mV=100
     )
 
 # configure the MultiVu columns
     data_b2 = mpv.DataFile()
-    data_b2.add_multiple_columns(['Time_b2', 'Temperature_b2', 'Field_b2', 'Chamber Status_b2', 'Resistance_b2'])
+    data_b2.add_multiple_columns(['Time_b2', 'Temperature_b2', 'Field_b2', 'Chamber Status_b2', 'Resistance_b2', 'Current_b2'])
     data_b2.create_file_and_write_header('Resistance_b1.dat', 'Van der pauw bridge 2 data')
 
     client.resistivity.set_current(bridge_number=2, current_uA=20)
+    # during a field ramp from -5,000 to 0.0 Oe at 20 Oe/sec
     utilities.scan_field_no_keithley(0, 20, 2051, client, data_b2, bridge=2)
 
     time.sleep(60 * 60)
 
+    # During a field ramp from 0 to 5,000 Oe at 20 Oe/sec
     utilities.scan_field_no_keithley(5000, 20, 2051, client, data_b2, bridge=2)
 
     time.sleep(60 * 60)
 
+    # During a field ramp from 5,000 to 0 Oe at 20 Oe/sec
     utilities.scan_field_no_keithley(0, 20, 2051, client, data_b2, bridge=1)
 
     time.sleep(60 * 60)
 
+    # During a field ramp from 0 to -5,000 Oe at 20 Oe/sec
     utilities.scan_field_no_keithley(-5000, 20, 2051, client, data_b2, bridge=2)
 
 

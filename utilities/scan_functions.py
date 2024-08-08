@@ -1,4 +1,4 @@
-def scan_field_no_keithley(stop, rate, points, client, data, bridge):
+def scan_field_no_keithley(stop, rate, points, client, data, bridge=1):
     CurrentField, sF = client.get_field()
     set_point = stop
     wait = abs(CurrentField - set_point) / points / rate
