@@ -1,4 +1,4 @@
-def scan_field_no_keithley(stop, rate, points):
+def scan_field_no_keithley(stop, rate, points, client, data, bridge):
     CurrentField, sF = client.get_field()
     set_point = stop
     wait = abs(CurrentField - set_point) / points / rate
@@ -18,7 +18,7 @@ def scan_field_no_keithley(stop, rate, points):
     for t in range(points):
         # chamber conditions
         start_time = time.time()
-        T, F, C, res = save_temp_field_chamber()
+        T, F, C, res, current = save_temp_field_chamber_res_data(bridge)
         
         data.set_value('Time', t)
         
@@ -29,6 +29,8 @@ def scan_field_no_keithley(stop, rate, points):
         data.set_value('Chamber Status', C)
         
         data.set_value('Resistance', res)
+
+        data.set_value('Bias Current', current)
         data.write_data()
         
         end_time = time.time()
