@@ -8,82 +8,11 @@ import MultiPyVu as mpv
 import time
 import numpy as np
 from enum import Enum, auto
+import utilities
 from pymeasure.instruments.keithley import Keithley2400
 
 
-class MVUInstrumentList(Enum):
-    DYNACOOL = auto()
-    PPMS = auto()
-    PPMSMVU = auto()
-    VERSALAB = auto()
-    MPMS3 = auto()
-    OPTICOOL = auto()
-    na = auto()
-
-
-mpv.instrument.InstrumentList = MVUInstrumentList
-
-
-def save_temp_field_chamber():
-    T, sT = client.get_temperature()
-    F, sF = client.get_field()
-    C = client.get_chamber()
-    res = client.resistivity.get_resistance(bridge_number=1)
-    print(f'{T:{7}.{3}f} {sT:{10}} {F:{7}} {sF:{20}} {C:{15}} {res}')
-    return T, F, C, res
-
-
-def keithley_sweep():
-    # setup Keithley
-    keithley = Keithley2400("GPIB0::5")
-
-    try:
-        keithley.apply_voltage()
-        keithley.compliance_current = 0.1
-        keithley.enable_source()
-
-        # Keithley sweep
-        v_list = np.linspace(0, -2, 5)  # same range as Sammak et. al.
-
-        for v in v_list:
-            keithley.ramp_to_voltage(v, steps=10, pause=0.001)  # ramp Keithley very quickly
-            print(f'Vg: {keithley.voltage} ', end="")
-
-            # chamber conditions
-            T, F, C, res = save_temp_field_chamber()
-
-            data.set_value('Time', t)
-            data.set_value('Temperature', T)
-            data.set_value('Field', F)
-            data.set_value('Chamber Status', C)
-            data.set_value('Resistance', res)
-            data.set_value('Gate Voltage', keithley.voltage)
-            data.write_data()
-
-        keithley.shutdown()
-
-    except Exception as e:
-        # graceful shutdown of Keithley
-        print(f'Encountered exception: {str(e)}')
-        keithley.shutdown()
-
-
-def step_field(start, target, steps):
-    points = np.linspace(start, target, steps)
-
-    for point in points:
-        client.set_field(
-            point,
-            20,
-            client.field.approach_mode.linear,
-            client.field.driven_mode.driven
-        )
-        client.wait_for(
-            60,
-            timeout_sec=0,
-            bitmask=client.temperature.waitfor | client.field.waitfor
-        )
-        keithley_sweep()
+utilities.instrument_ppmsmvu_setup()
 
 
 with mpv.Client() as client:
@@ -98,22 +27,11 @@ with mpv.Client() as client:
         3,
         client.temperature.approach_mode.fast_settle
     )
-    client.set_field(
-        -50000.0,
-        20,
-        client.field.approach_mode.linear,
-        client.field.driven_mode.driven
-    )
 
-    # Wait for 60 seconds after temperature and field are stable
-    print('Waiting...')
-    client.wait_for(
-        60,
-        timeout_sec=0,
-        bitmask=client.temperature.waitfor | client.field.waitfor
-    )
-
-    time.sleep(60 * 60)  # wait for dewar pressure to stabilize
+    # configure the MultiVu columns
+    data = mpv.DataFile()
+    data.add_multiple_columns(['Time', 'Temperature', 'Field', 'Chamber Status', 'Resistance', 'Gate Voltage'])
+    data.create_file_and_write_header('Resistance.dat', 'Hallbar data')
 
     # Configure resistivity measurement
     client.resistivity.bridge_setup(
@@ -127,24 +45,25 @@ with mpv.Client() as client:
 
     # set the current across the hallbar TODO: ref paper Sammak et. al.
     client.resistivity.set_current(bridge_number=1, current_uA=50)
+    
+    utilities.step_field_with_keithley(0, -50000, 5, client, data)
 
-    # configure the MultiVu columns
-    data = mpv.DataFile()
-    data.add_multiple_columns(['Time', 'Temperature', 'Field', 'Chamber Status', 'Resistance', 'Gate Voltage'])
-    data.create_file_and_write_header('Resistance.dat', 'Hallbar data')
+    # step_field_with_keithley already has a wait for field and temperature
+
+    time.sleep(60 * 60)  # wait for dewar pressure to stabilize
 
     # step the field and sweep Vg at 5 steps between 0 and -50000 Oe
-    step_field(-50000, 0, 5)
+    utilities.step_field_with_keithley(-50000, 0, 5, client, data)
 
     time.sleep(60 * 60)  # wait for dewar pressure to stabilize
 
     # step the field and sweep Vg at 5 steps between 0 and 50000 Oe
-    step_field(0, 50000, 5)
+    utilities.step_field_with_keithley(0, 50000, 5, client, data)
 
     time.sleep(60 * 60)  # wait for dewar pressure to stabilize
 
     # step the field and sweep Vg at 5 steps between 0 and 50000 Oe
-    step_field(50000, 0, 5)
+    utilities.step_field_with_keithley(50000, 0, 5, client, data)
 
     time.sleep(60 * 60)  # wait for dewar pressure to stabilize
 

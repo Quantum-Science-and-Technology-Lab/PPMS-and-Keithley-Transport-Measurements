@@ -1,4 +1,4 @@
-def save_temp_field_chamber_res_data():
+def save_temp_field_chamber_res_data(client):
     '''
     Returns
     -------
